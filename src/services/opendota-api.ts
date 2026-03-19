@@ -1,4 +1,5 @@
 import { Hero, PlayerHeroStat, HeroMatchup } from '@/types/hero';
+import { LaneRoleStat } from '@/types/lane';
 import { getCached, setCache } from './cache';
 
 const BASE_URL = 'https://api.opendota.com/api';
@@ -6,6 +7,7 @@ const BASE_URL = 'https://api.opendota.com/api';
 const TTL_HEROES = 1440; // 24 hours
 const TTL_PLAYER = 15;   // 15 minutes
 const TTL_MATCHUP = 60;  // 1 hour
+const TTL_LANE_ROLES = 1440; // 24 hours
 
 async function fetchJson<T>(url: string, cacheKey: string, ttlMinutes: number): Promise<T> {
   const cached = getCached<T>(cacheKey);
@@ -41,5 +43,13 @@ export function fetchHeroMatchups(heroId: number): Promise<HeroMatchup[]> {
     `/heroes/${heroId}/matchups`,
     `opendota:hero:${heroId}:matchups`,
     TTL_MATCHUP,
+  );
+}
+
+export function fetchLaneRoles(): Promise<LaneRoleStat[]> {
+  return fetchJson<LaneRoleStat[]>(
+    '/scenarios/laneRoles',
+    'opendota:laneRoles',
+    TTL_LANE_ROLES,
   );
 }

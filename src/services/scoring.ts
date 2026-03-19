@@ -1,16 +1,18 @@
 import { Hero, PlayerHeroStat, HeroMatchup } from '@/types/hero';
 import { HeroPoolEntry, MatchupResult, Recommendation } from '@/types/recommendation';
+import { LaneRoleStat, LaneType, HeroLaneData, LANE_ROLE_MAP } from '@/types/lane';
 import {
   SCORE_WEIGHT_WIN_RATE,
   SCORE_WEIGHT_MATCHUP,
   SCORE_WEIGHT_EXPERIENCE,
   TOP_RECOMMENDATIONS_COUNT,
+  MIN_GAMES_DEFAULT,
 } from '@/constants';
 
 export function buildHeroPool(
   playerHeroes: PlayerHeroStat[],
   heroes: Hero[],
-  minGames = 10,
+  minGames = MIN_GAMES_DEFAULT,
   minWinRate = 0.5,
 ): HeroPoolEntry[] {
   const heroMap = new Map(heroes.map(h => [h.id, h]));
@@ -106,11 +108,75 @@ export function generateReasons(
   return reasons;
 }
 
+export function buildLaneDataMap(laneRoles: LaneRoleStat[]): Map<number, HeroLaneData> {
+  const grouped = new Map<number, Map<number, { games: number; wins: number }>>();
+
+  for (const stat of laneRoles) {
+    const lane = LANE_ROLE_MAP[stat.lane_role];
+    if (!lane) continue;
+
+    if (!grouped.has(stat.hero_id)) {
+      grouped.set(stat.hero_id, new Map());
+    }
+    const heroLanes = grouped.get(stat.hero_id)!;
+    const existing = heroLanes.get(stat.lane_role) ?? { games: 0, wins: 0 };
+    existing.games += parseInt(stat.games, 10);
+    existing.wins += parseInt(stat.wins, 10);
+    heroLanes.set(stat.lane_role, existing);
+  }
+
+  const result = new Map<number, HeroLaneData>();
+
+  for (const [heroId, laneMap] of grouped) {
+    const lanes: { lane: LaneType; games: number; winRate: number }[] = [];
+    let maxGames = 0;
+    let primaryLane: LaneType = 'safe';
+
+    for (const [role, data] of laneMap) {
+      const lane = LANE_ROLE_MAP[role];
+      if (!lane) continue;
+      const winRate = data.games > 0 ? data.wins / data.games : 0;
+      lanes.push({ lane, games: data.games, winRate });
+      if (data.games > maxGames) {
+        maxGames = data.games;
+        primaryLane = lane;
+      }
+    }
+
+    result.set(heroId, { heroId, lanes, primaryLane });
+  }
+
+  return result;
+}
+
+export function filterPoolByLane(
+  heroPool: HeroPoolEntry[],
+  laneDataMap: Map<number, HeroLaneData>,
+  laneType: LaneType,
+): HeroPoolEntry[] {
+  if (!laneType) return heroPool;
+
+  return heroPool.filter(entry => {
+    const laneData = laneDataMap.get(entry.hero.id);
+    if (!laneData) return false;
+
+    // Include hero if the selected lane is their primary lane,
+    // or if they have significant games in that lane (>20% of their total lane games)
+    if (laneData.primaryLane === laneType) return true;
+
+    const totalGames = laneData.lanes.reduce((sum, l) => sum + l.games, 0);
+    const laneGames = laneData.lanes.find(l => l.lane === laneType)?.games ?? 0;
+    return totalGames > 0 && (laneGames / totalGames) > 0.2;
+  });
+}
+
 export function scoreHeroPool(
   heroPool: HeroPoolEntry[],
   matchupResults: (HeroMatchup[] | null)[],
   enemyHeroIds: number[],
   heroes: Hero[],
+  laneDataMap?: Map<number, HeroLaneData>,
+  laneType?: LaneType,
 ): Recommendation[] {
   const heroMap = new Map(heroes.map(h => [h.id, h]));
 
@@ -122,7 +188,7 @@ export function scoreHeroPool(
       : { average: 0, details: [] };
 
     const matchupDetails: MatchupResult[] = details.map(d => ({
-      enemyHero: heroMap.get(d.heroId) ?? { id: d.heroId, name: '', localized_name: 'Unknown', primary_attr: '', attack_type: '', roles: [], img: '', icon: '' },
+      enemyHero: heroMap.get(d.heroId) ?? { id: d.heroId, name: '', localized_name: 'Unknown', primary_attr: '', attack_type: '', roles: [] },
       advantage: d.advantage,
       gamesPlayed: d.gamesPlayed,
     }));
@@ -137,6 +203,21 @@ export function scoreHeroPool(
       })),
       entry.games,
     );
+
+    if (laneDataMap && laneType) {
+      const laneData = laneDataMap.get(entry.hero.id);
+      if (laneData) {
+        const laneLabel = laneType === 'safe' ? 'Safe Lane' : laneType === 'mid' ? 'Mid' : 'Offlane';
+        if (laneData.primaryLane === laneType) {
+          reasons.push(`Primary ${laneLabel} hero`);
+        } else {
+          const laneInfo = laneData.lanes.find(l => l.lane === laneType);
+          if (laneInfo) {
+            reasons.push(`Viable ${laneLabel} hero (${(laneInfo.winRate * 100).toFixed(0)}% lane WR)`);
+          }
+        }
+      }
+    }
 
     return {
       hero: entry.hero,

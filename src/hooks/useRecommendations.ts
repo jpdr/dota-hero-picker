@@ -3,15 +3,22 @@
 import { useState, useCallback } from 'react';
 import { Hero, HeroMatchup } from '@/types/hero';
 import { HeroPoolEntry, Recommendation } from '@/types/recommendation';
+import { HeroLaneData, LaneType } from '@/types/lane';
 import { fetchHeroMatchups } from '@/services/opendota-api';
-import { scoreHeroPool } from '@/services/scoring';
+import { scoreHeroPool, filterPoolByLane } from '@/services/scoring';
 import { MAX_CONCURRENT_FETCHES } from '@/constants';
 
 interface UseRecommendationsResult {
   recommendations: Recommendation[];
   loading: boolean;
   error: string | null;
-  calculate: (heroPool: HeroPoolEntry[], enemyHeroIds: number[], heroes: Hero[]) => Promise<void>;
+  calculate: (
+    heroPool: HeroPoolEntry[],
+    enemyHeroIds: number[],
+    heroes: Hero[],
+    laneDataMap?: Map<number, HeroLaneData>,
+    laneType?: LaneType,
+  ) => Promise<void>;
 }
 
 async function fetchMatchupsWithConcurrencyLimit(
@@ -52,14 +59,26 @@ export function useRecommendations(): UseRecommendationsResult {
     heroPool: HeroPoolEntry[],
     enemyHeroIds: number[],
     heroes: Hero[],
+    laneDataMap?: Map<number, HeroLaneData>,
+    laneType?: LaneType,
   ) => {
     try {
       setLoading(true);
       setError(null);
 
-      const matchupResults = await fetchMatchupsWithConcurrencyLimit(heroPool, MAX_CONCURRENT_FETCHES);
+      const filteredPool = laneDataMap && laneType
+        ? filterPoolByLane(heroPool, laneDataMap, laneType)
+        : heroPool;
 
-      const scored = scoreHeroPool(heroPool, matchupResults, enemyHeroIds, heroes);
+      if (filteredPool.length === 0) {
+        setError('No heroes in your pool match the selected lane. Try a different lane or "Any".');
+        setRecommendations([]);
+        return;
+      }
+
+      const matchupResults = await fetchMatchupsWithConcurrencyLimit(filteredPool, MAX_CONCURRENT_FETCHES);
+
+      const scored = scoreHeroPool(filteredPool, matchupResults, enemyHeroIds, heroes, laneDataMap, laneType);
       setRecommendations(scored);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to calculate recommendations');

@@ -1,9 +1,11 @@
 import type { NextConfig } from "next";
 
+const isProd = process.env.NODE_ENV === 'production';
+
 const nextConfig: NextConfig = {
   output: 'export',
-  basePath: '/dota-hero-picker',
-  assetPrefix: '/dota-hero-picker/',
+  basePath: isProd ? '/dota-hero-picker' : '',
+  assetPrefix: isProd ? '/dota-hero-picker/' : '',
 };
 
 export default nextConfig;

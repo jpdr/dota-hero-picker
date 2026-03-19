@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useHeroes } from './useHeroes';
 import { usePlayerHeroPool } from './usePlayerHeroPool';
 import { useRecommendations } from './useRecommendations';
+import { LaneType, HeroLaneData } from '@/types/lane';
+import { fetchLaneRoles } from '@/services/opendota-api';
+import { buildLaneDataMap } from '@/services/scoring';
 import { MAX_ENEMY_HEROES } from '@/constants';
 
 export function usePickerState() {
@@ -13,6 +16,16 @@ export function usePickerState() {
 
   const [selectedEnemyIds, setSelectedEnemyIds] = useState<number[]>([]);
   const [isPoolLoaded, setIsPoolLoaded] = useState(false);
+  const [laneType, setLaneType] = useState<LaneType>(null);
+  const [laneDataMap, setLaneDataMap] = useState<Map<number, HeroLaneData>>(new Map());
+  const [laneDataLoading, setLaneDataLoading] = useState(true);
+
+  useEffect(() => {
+    fetchLaneRoles()
+      .then(data => setLaneDataMap(buildLaneDataMap(data)))
+      .catch(() => {})
+      .finally(() => setLaneDataLoading(false));
+  }, []);
 
   const handleLoadProfile = useCallback(async (accountId: string) => {
     const success = await loadPool(accountId, heroes);
@@ -33,8 +46,8 @@ export function usePickerState() {
   }, []);
 
   const handleSuggestPicks = useCallback(async () => {
-    await calculate(heroPool, selectedEnemyIds, heroes);
-  }, [calculate, heroPool, selectedEnemyIds, heroes]);
+    await calculate(heroPool, selectedEnemyIds, heroes, laneDataMap, laneType);
+  }, [calculate, heroPool, selectedEnemyIds, heroes, laneDataMap, laneType]);
 
   const canSuggest = isPoolLoaded && heroPool.length > 0 && selectedEnemyIds.length > 0 && !recsLoading;
 
@@ -51,6 +64,9 @@ export function usePickerState() {
     selectedEnemyIds,
     isPoolLoaded,
     canSuggest,
+    laneType,
+    laneDataLoading,
+    setLaneType,
     handleLoadProfile,
     handleSelectEnemy,
     handleRemoveEnemy,

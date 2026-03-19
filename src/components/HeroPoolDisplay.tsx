@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { HeroPoolEntry } from '@/types/recommendation';
-import { CDN_BASE } from '@/constants';
+import { getHeroIconUrl } from '@/constants';
 
 interface HeroPoolDisplayProps {
   heroPool: HeroPoolEntry[];
@@ -36,7 +36,7 @@ export default function HeroPoolDisplay({ heroPool }: HeroPoolDisplayProps) {
                 className="flex items-center gap-3 rounded-md bg-gray-750 px-3 py-2"
               >
                 <img
-                  src={`${CDN_BASE}${entry.hero.icon}`}
+                  src={getHeroIconUrl(entry.hero.name)}
                   alt={entry.hero.localized_name}
                   className="h-6 w-6 object-contain"
                 />

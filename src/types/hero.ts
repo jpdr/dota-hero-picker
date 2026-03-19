@@ -5,8 +5,6 @@ export interface Hero {
   primary_attr: string;
   attack_type: string;
   roles: string[];
-  img: string;
-  icon: string;
 }
 
 export interface PlayerHeroStat {

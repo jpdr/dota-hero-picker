@@ -1,4 +1,16 @@
-export const CDN_BASE = 'https://api.opendota.com';
+export const HERO_IMAGE_CDN = 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes';
+
+export function getHeroImageUrl(heroName: string): string {
+  const slug = heroName.replace('npc_dota_hero_', '');
+  return `${HERO_IMAGE_CDN}/${slug}.png`;
+}
+
+export function getHeroIconUrl(heroName: string): string {
+  const slug = heroName.replace('npc_dota_hero_', '');
+  return `${HERO_IMAGE_CDN}/icons/${slug}.png`;
+}
+
+export const MIN_GAMES_DEFAULT = 30;
 
 export const MAX_ENEMY_HEROES = 3;
 

@@ -4,6 +4,7 @@ import { usePickerState } from '@/hooks/usePickerState';
 import AccountIdInput from './AccountIdInput';
 import HeroPoolDisplay from './HeroPoolDisplay';
 import HeroAutocomplete from './HeroAutocomplete';
+import LaneSelector from './LaneSelector';
 import RecommendationList from './RecommendationList';
 
 export default function PickerPage() {
@@ -20,6 +21,8 @@ export default function PickerPage() {
     selectedEnemyIds,
     isPoolLoaded,
     canSuggest,
+    laneType,
+    setLaneType,
     handleLoadProfile,
     handleSelectEnemy,
     handleRemoveEnemy,
@@ -51,13 +54,16 @@ export default function PickerPage() {
 
         {isPoolLoaded && <HeroPoolDisplay heroPool={heroPool} />}
 
-        <div className="flex-1">
-          <HeroAutocomplete
-            heroes={heroes}
-            selectedIds={selectedEnemyIds}
-            onSelect={handleSelectEnemy}
-            onRemove={handleRemoveEnemy}
-          />
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <div className="flex-1">
+            <HeroAutocomplete
+              heroes={heroes}
+              selectedIds={selectedEnemyIds}
+              onSelect={handleSelectEnemy}
+              onRemove={handleRemoveEnemy}
+            />
+          </div>
+          <LaneSelector value={laneType} onChange={setLaneType} />
         </div>
 
         <button

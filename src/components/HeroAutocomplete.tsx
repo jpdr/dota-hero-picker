@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Hero } from '@/types/hero';
-import { CDN_BASE } from '@/constants';
+import { getHeroIconUrl } from '@/constants';
 
 interface HeroAutocompleteProps {
   heroes: Hero[];
@@ -71,7 +71,7 @@ export default function HeroAutocomplete({ heroes, selectedIds, onSelect, onRemo
                   className="flex w-full items-center gap-3 px-4 py-2 text-left text-gray-100 hover:bg-gray-700 transition-colors"
                 >
                   <img
-                    src={`${CDN_BASE}${hero.icon}`}
+                    src={getHeroIconUrl(hero.name)}
                     alt={hero.localized_name}
                     className="h-6 w-6 object-contain"
                   />
@@ -90,7 +90,7 @@ export default function HeroAutocomplete({ heroes, selectedIds, onSelect, onRemo
               className="flex items-center gap-2 rounded-full bg-gray-700 px-3 py-1 text-sm text-gray-200"
             >
               <img
-                src={`${CDN_BASE}${hero.icon}`}
+                src={getHeroIconUrl(hero.name)}
                 alt={hero.localized_name}
                 className="h-4 w-4 object-contain"
               />

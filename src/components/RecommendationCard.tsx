@@ -1,7 +1,7 @@
 "use client";
 
 import { Recommendation } from '@/types/recommendation';
-import { CDN_BASE } from '@/constants';
+import { getHeroImageUrl } from '@/constants';
 
 interface RecommendationCardProps {
   recommendation: Recommendation;
@@ -25,7 +25,7 @@ export default function RecommendationCard({ recommendation, rank }: Recommendat
     <div className="flex flex-col rounded-lg bg-gray-800 border border-gray-700 shadow-md overflow-hidden">
       <div className="relative">
         <img
-          src={`${CDN_BASE}${hero.img}`}
+          src={getHeroImageUrl(hero.name)}
           alt={hero.localized_name}
           className="w-full h-32 object-cover object-top"
         />
