@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import { Hero } from '@/types/hero';
 import { getHeroIconUrl, HERO_GRID_ICON_SIZE } from '@/constants';
 
@@ -10,6 +10,19 @@ interface HeroGridProps {
   recommendedHeroIds: number[];
   selectionMode: 'ally' | 'enemy';
   onPickHero: (heroId: number) => void;
+}
+
+function fuzzyMatch(text: string, query: string): boolean {
+  const lowerText = text.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+  // First try substring match
+  if (lowerText.includes(lowerQuery)) return true;
+  // Then try subsequence match (e.g., "ch" matches "teChies")
+  let qi = 0;
+  for (let ti = 0; ti < lowerText.length && qi < lowerQuery.length; ti++) {
+    if (lowerText[ti] === lowerQuery[qi]) qi++;
+  }
+  return qi === lowerQuery.length;
 }
 
 type AttributeFilter = 'all' | 'str' | 'agi' | 'int' | 'uni';
@@ -32,15 +45,21 @@ const ATTR_MAP: Record<string, AttributeFilter> = {
 export default function HeroGrid({ heroes, pickedHeroIds, recommendedHeroIds, selectionMode, onPickHero }: HeroGridProps) {
   const [filter, setFilter] = useState('');
   const [attrFilter, setAttrFilter] = useState<AttributeFilter>('all');
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const pickedSet = useMemo(() => new Set(pickedHeroIds), [pickedHeroIds]);
   const recommendedSet = useMemo(() => new Set(recommendedHeroIds), [recommendedHeroIds]);
 
+  const pickAndReset = useCallback((heroId: number) => {
+    onPickHero(heroId);
+    setFilter('');
+    requestAnimationFrame(() => searchRef.current?.focus());
+  }, [onPickHero]);
+
   const filteredHeroes = useMemo(() => {
     let result = heroes;
     if (filter) {
-      const lower = filter.toLowerCase();
-      result = result.filter(h => h.localized_name.toLowerCase().includes(lower));
+      result = result.filter(h => fuzzyMatch(h.localized_name, filter));
     }
     if (attrFilter !== 'all') {
       result = result.filter(h => ATTR_MAP[h.primary_attr] === attrFilter);
@@ -54,9 +73,18 @@ export default function HeroGrid({ heroes, pickedHeroIds, recommendedHeroIds, se
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <input
+          ref={searchRef}
           type="text"
           value={filter}
           onChange={e => setFilter(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              const pickable = filteredHeroes.filter(h => !pickedSet.has(h.id));
+              if (pickable.length === 1) {
+                pickAndReset(pickable[0].id);
+              }
+            }
+          }}
           placeholder="Search heroes..."
           className="flex-1 rounded-lg bg-gray-800 px-4 py-2 text-gray-100 border border-gray-700 focus:border-cyan-500 focus:outline-none"
         />
@@ -87,7 +115,7 @@ export default function HeroGrid({ heroes, pickedHeroIds, recommendedHeroIds, se
                 key={hero.id}
                 type="button"
                 disabled={isPicked}
-                onClick={() => onPickHero(hero.id)}
+                onClick={() => pickAndReset(hero.id)}
                 className={`flex flex-col items-center gap-1 rounded-lg p-1.5 transition-all ${
                   isPicked
                     ? 'opacity-30 cursor-not-allowed'

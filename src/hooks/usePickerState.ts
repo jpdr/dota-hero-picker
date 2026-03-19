@@ -71,6 +71,15 @@ export function usePickerState() {
     setIsPoolLoaded(success);
   }, [loadPool, heroes]);
 
+  // Auto-load default profile when heroes are ready
+  const autoLoadedRef = useRef(false);
+  useEffect(() => {
+    if (heroes.length > 0 && !autoLoadedRef.current && !isPoolLoaded && !poolLoading) {
+      autoLoadedRef.current = true;
+      handleLoadProfile('177992811');
+    }
+  }, [heroes, isPoolLoaded, poolLoading, handleLoadProfile]);
+
   const heroMap = useMemo(() => new Map(heroes.map(h => [h.id, h])), [heroes]);
 
   const handlePickHero = useCallback((heroId: number) => {
