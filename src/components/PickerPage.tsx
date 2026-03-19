@@ -40,7 +40,7 @@ export default function PickerPage() {
   } = usePickerState();
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8">
+    <div className="mx-auto w-full max-w-7xl px-4 py-8">
       <h1 className="mb-8 text-3xl font-bold text-gray-100">Dota 2 Hero Picker</h1>
 
       {heroesError && (

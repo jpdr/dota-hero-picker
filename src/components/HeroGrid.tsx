@@ -32,7 +32,7 @@ const ATTRIBUTE_FILTERS: { label: string; value: AttributeFilter }[] = [
   { label: 'Str', value: 'str' },
   { label: 'Agi', value: 'agi' },
   { label: 'Int', value: 'int' },
-  { label: 'Uni', value: 'uni' },
+  { label: 'Universal', value: 'uni' },
 ];
 
 const ATTR_MAP: Record<string, AttributeFilter> = {
@@ -86,15 +86,15 @@ export default function HeroGrid({ heroes, pickedHeroIds, recommendedHeroIds, se
             }
           }}
           placeholder="Search heroes..."
-          className="flex-1 rounded-lg bg-gray-800 px-4 py-2 text-gray-100 border border-gray-700 focus:border-cyan-500 focus:outline-none"
+          className="min-w-[50%] rounded-lg bg-gray-800 px-4 py-2 text-gray-100 border border-gray-700 focus:border-cyan-500 focus:outline-none"
         />
-        <div className="flex gap-1">
+        <div className="flex gap-2">
           {ATTRIBUTE_FILTERS.map(af => (
             <button
               key={af.value}
               type="button"
               onClick={() => setAttrFilter(af.value)}
-              className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                 attrFilter === af.value
                   ? 'bg-cyan-600 text-white'
                   : 'bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700'
@@ -106,7 +106,7 @@ export default function HeroGrid({ heroes, pickedHeroIds, recommendedHeroIds, se
         </div>
       </div>
       <div className={`rounded-lg border ${borderColor} bg-gray-800/50 p-3`}>
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
+        <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12">
           {filteredHeroes.map(hero => {
             const isPicked = pickedSet.has(hero.id);
             const isRecommended = recommendedSet.has(hero.id);
