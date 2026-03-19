@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  output: 'export',
+  basePath: '/dota-hero-picker',
+  assetPrefix: '/dota-hero-picker/',
 };
 
 export default nextConfig;
