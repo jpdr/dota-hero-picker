@@ -1,0 +1,8 @@
+{
+  "feature": "dota-hero-picker",
+  "current_wave": 2,
+  "plan_summary": "Frontend-only Next.js app that uses OpenDota API to recommend Dota 2 heroes based on player performance and enemy lane matchups. Single project with types, services, hooks, and components.",
+  "dashboard": "| #  | Agent            | Wave | Status  | Depends On         | Summary |\n|----|------------------|------|---------|--------------------|--------|\n| 1  | Project Planner  | 1    | Done    | --                 | Next.js frontend-only plan approved |\n| 2  | Frontend Coder   | 2    | Running | 1. Project Planner |         |\n| 3  | Reviewer         | 3    | Pending | 2. Frontend Coder  |         |\n| 4  | Commit           | 4    | Pending | 3. Reviewer        |         |",
+  "files_changed": {},
+  "started_at": "2026-03-19T13:25:00Z"
+}
