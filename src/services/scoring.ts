@@ -1,5 +1,11 @@
 import { Hero, PlayerHeroStat, HeroMatchup } from '@/types/hero';
-import { HeroPoolEntry } from '@/types/recommendation';
+import { HeroPoolEntry, MatchupResult, Recommendation } from '@/types/recommendation';
+import {
+  SCORE_WEIGHT_WIN_RATE,
+  SCORE_WEIGHT_MATCHUP,
+  SCORE_WEIGHT_EXPERIENCE,
+  TOP_RECOMMENDATIONS_COUNT,
+} from '@/constants';
 
 export function buildHeroPool(
   playerHeroes: PlayerHeroStat[],
@@ -23,7 +29,7 @@ export function buildHeroPool(
     if (winRate < minWinRate) {
       continue;
     }
-    entries.push({ hero, games: ph.games, wins: ph.win, winRate, kda: null });
+    entries.push({ hero, games: ph.games, wins: ph.win, winRate });
   }
 
   return entries.sort((a, b) => b.winRate - a.winRate);
@@ -70,7 +76,9 @@ export function computeCompositeScore(
   avgMatchupAdvantage: number,
   matchesPlayed: number,
 ): number {
-  return (playerWinRate * 0.5) + (avgMatchupAdvantage * 0.4) + (Math.log10(Math.max(matchesPlayed, 1)) * 0.1);
+  return (playerWinRate * SCORE_WEIGHT_WIN_RATE)
+    + (avgMatchupAdvantage * SCORE_WEIGHT_MATCHUP)
+    + (Math.log10(Math.max(matchesPlayed, 1)) * SCORE_WEIGHT_EXPERIENCE);
 }
 
 export function generateReasons(
@@ -96,4 +104,51 @@ export function generateReasons(
   }
 
   return reasons;
+}
+
+export function scoreHeroPool(
+  heroPool: HeroPoolEntry[],
+  matchupResults: (HeroMatchup[] | null)[],
+  enemyHeroIds: number[],
+  heroes: Hero[],
+): Recommendation[] {
+  const heroMap = new Map(heroes.map(h => [h.id, h]));
+
+  const scored: Recommendation[] = heroPool.map((entry, index) => {
+    const matchups = matchupResults[index];
+
+    const { average, details } = matchups
+      ? computeMatchupAdvantage(matchups, enemyHeroIds)
+      : { average: 0, details: [] };
+
+    const matchupDetails: MatchupResult[] = details.map(d => ({
+      enemyHero: heroMap.get(d.heroId) ?? { id: d.heroId, name: '', localized_name: 'Unknown', primary_attr: '', attack_type: '', roles: [], img: '', icon: '' },
+      advantage: d.advantage,
+      gamesPlayed: d.gamesPlayed,
+    }));
+
+    const compositeScore = computeCompositeScore(entry.winRate, average, entry.games);
+
+    const reasons = generateReasons(
+      entry.winRate,
+      details.map(d => ({
+        enemyName: heroMap.get(d.heroId)?.localized_name ?? 'Unknown',
+        advantage: d.advantage,
+      })),
+      entry.games,
+    );
+
+    return {
+      hero: entry.hero,
+      compositeScore,
+      playerWinRate: entry.winRate,
+      averageMatchupAdvantage: average,
+      matchesPlayed: entry.games,
+      matchupDetails,
+      reasons,
+    };
+  });
+
+  scored.sort((a, b) => b.compositeScore - a.compositeScore);
+  return scored.slice(0, TOP_RECOMMENDATIONS_COUNT);
 }

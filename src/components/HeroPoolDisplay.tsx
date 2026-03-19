@@ -2,12 +2,11 @@
 
 import { useState } from 'react';
 import { HeroPoolEntry } from '@/types/recommendation';
+import { CDN_BASE } from '@/constants';
 
 interface HeroPoolDisplayProps {
   heroPool: HeroPoolEntry[];
 }
-
-const CDN_BASE = 'https://api.opendota.com';
 
 export default function HeroPoolDisplay({ heroPool }: HeroPoolDisplayProps) {
   const [isOpen, setIsOpen] = useState(false);
