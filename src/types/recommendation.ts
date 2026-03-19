@@ -5,7 +5,6 @@ export interface HeroPoolEntry {
   games: number;
   wins: number;
   winRate: number;
-  kda: number | null;
 }
 
 export interface MatchupResult {

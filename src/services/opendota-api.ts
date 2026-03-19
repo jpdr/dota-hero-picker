@@ -1,4 +1,4 @@
-import { Hero, PlayerHeroStat, PlayerMatch, HeroMatchup } from '@/types/hero';
+import { Hero, PlayerHeroStat, HeroMatchup } from '@/types/hero';
 import { getCached, setCache } from './cache';
 
 const BASE_URL = 'https://api.opendota.com/api';
@@ -28,17 +28,10 @@ export function fetchHeroes(): Promise<Hero[]> {
 }
 
 export function fetchPlayerHeroes(accountId: string): Promise<PlayerHeroStat[]> {
+  const encoded = encodeURIComponent(accountId);
   return fetchJson<PlayerHeroStat[]>(
-    `/players/${accountId}/heroes`,
-    `opendota:player:${accountId}:heroes`,
-    TTL_PLAYER,
-  );
-}
-
-export function fetchPlayerRecentMatches(accountId: string, limit = 50): Promise<PlayerMatch[]> {
-  return fetchJson<PlayerMatch[]>(
-    `/players/${accountId}/matches?limit=${limit}`,
-    `opendota:player:${accountId}:matches:${limit}`,
+    `/players/${encoded}/heroes`,
+    `opendota:player:${encoded}:heroes`,
     TTL_PLAYER,
   );
 }

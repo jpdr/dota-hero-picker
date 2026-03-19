@@ -25,14 +25,3 @@ export interface HeroMatchup {
   games_played: number;
   wins: number;
 }
-
-export interface PlayerMatch {
-  match_id: number;
-  hero_id: number;
-  kills: number;
-  deaths: number;
-  assists: number;
-  player_slot: number;
-  radiant_win: boolean;
-  duration: number;
-}

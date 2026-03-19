@@ -1,13 +1,12 @@
 "use client";
 
 import { Recommendation } from '@/types/recommendation';
+import { CDN_BASE } from '@/constants';
 
 interface RecommendationCardProps {
   recommendation: Recommendation;
   rank: number;
 }
-
-const CDN_BASE = 'https://api.opendota.com';
 
 function getScoreColor(score: number): string {
   if (score >= 0.6) {

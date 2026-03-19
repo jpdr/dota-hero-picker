@@ -1,16 +1,46 @@
 "use client";
 
 import { useState, useCallback } from 'react';
-import { Hero } from '@/types/hero';
-import { HeroPoolEntry, Recommendation, MatchupResult } from '@/types/recommendation';
+import { Hero, HeroMatchup } from '@/types/hero';
+import { HeroPoolEntry, Recommendation } from '@/types/recommendation';
 import { fetchHeroMatchups } from '@/services/opendota-api';
-import { computeMatchupAdvantage, computeCompositeScore, generateReasons } from '@/services/scoring';
+import { scoreHeroPool } from '@/services/scoring';
+import { MAX_CONCURRENT_FETCHES } from '@/constants';
 
 interface UseRecommendationsResult {
   recommendations: Recommendation[];
   loading: boolean;
   error: string | null;
   calculate: (heroPool: HeroPoolEntry[], enemyHeroIds: number[], heroes: Hero[]) => Promise<void>;
+}
+
+async function fetchMatchupsWithConcurrencyLimit(
+  heroPool: HeroPoolEntry[],
+  maxConcurrent: number,
+): Promise<(HeroMatchup[] | null)[]> {
+  const results: (HeroMatchup[] | null)[] = new Array(heroPool.length).fill(null);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < heroPool.length) {
+      const index = nextIndex++;
+      const result = await fetchHeroMatchups(heroPool[index].hero.id)
+        .then(data => ({ status: 'fulfilled' as const, value: data }))
+        .catch(() => ({ status: 'rejected' as const }));
+
+      if (result.status === 'fulfilled') {
+        results[index] = result.value;
+      }
+    }
+  }
+
+  const workers = Array.from(
+    { length: Math.min(maxConcurrent, heroPool.length) },
+    () => worker(),
+  );
+  await Promise.all(workers);
+
+  return results;
 }
 
 export function useRecommendations(): UseRecommendationsResult {
@@ -27,46 +57,10 @@ export function useRecommendations(): UseRecommendationsResult {
       setLoading(true);
       setError(null);
 
-      const heroMap = new Map(heroes.map(h => [h.id, h]));
+      const matchupResults = await fetchMatchupsWithConcurrencyLimit(heroPool, MAX_CONCURRENT_FETCHES);
 
-      const matchupResults = await Promise.all(
-        heroPool.map(entry => fetchHeroMatchups(entry.hero.id)),
-      );
-
-      const scored: Recommendation[] = heroPool.map((entry, index) => {
-        const matchups = matchupResults[index];
-        const { average, details } = computeMatchupAdvantage(matchups, enemyHeroIds);
-
-        const matchupDetails: MatchupResult[] = details.map(d => ({
-          enemyHero: heroMap.get(d.heroId) ?? { id: d.heroId, name: '', localized_name: 'Unknown', primary_attr: '', attack_type: '', roles: [], img: '', icon: '' },
-          advantage: d.advantage,
-          gamesPlayed: d.gamesPlayed,
-        }));
-
-        const compositeScore = computeCompositeScore(entry.winRate, average, entry.games);
-
-        const reasons = generateReasons(
-          entry.winRate,
-          details.map(d => ({
-            enemyName: heroMap.get(d.heroId)?.localized_name ?? 'Unknown',
-            advantage: d.advantage,
-          })),
-          entry.games,
-        );
-
-        return {
-          hero: entry.hero,
-          compositeScore,
-          playerWinRate: entry.winRate,
-          averageMatchupAdvantage: average,
-          matchesPlayed: entry.games,
-          matchupDetails,
-          reasons,
-        };
-      });
-
-      scored.sort((a, b) => b.compositeScore - a.compositeScore);
-      setRecommendations(scored.slice(0, 5));
+      const scored = scoreHeroPool(heroPool, matchupResults, enemyHeroIds, heroes);
+      setRecommendations(scored);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to calculate recommendations');
       setRecommendations([]);

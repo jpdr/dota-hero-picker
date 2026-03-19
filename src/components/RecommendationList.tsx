@@ -2,6 +2,7 @@
 
 import { Recommendation } from '@/types/recommendation';
 import RecommendationCard from './RecommendationCard';
+import { SKELETON_COUNT } from '@/constants';
 
 interface RecommendationListProps {
   recommendations: Recommendation[];
@@ -12,7 +13,7 @@ interface RecommendationListProps {
 function LoadingSkeleton() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {Array.from({ length: 5 }).map((_, i) => (
+      {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
         <div key={i} className="animate-pulse rounded-lg bg-gray-800 border border-gray-700">
           <div className="h-32 bg-gray-700 rounded-t-lg" />
           <div className="p-4 space-y-3">

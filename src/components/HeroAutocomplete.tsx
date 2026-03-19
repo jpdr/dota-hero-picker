@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Hero } from '@/types/hero';
+import { CDN_BASE } from '@/constants';
 
 interface HeroAutocompleteProps {
   heroes: Hero[];
@@ -9,8 +10,6 @@ interface HeroAutocompleteProps {
   onSelect: (heroId: number) => void;
   onRemove: (heroId: number) => void;
 }
-
-const CDN_BASE = 'https://api.opendota.com';
 
 export default function HeroAutocomplete({ heroes, selectedIds, onSelect, onRemove }: HeroAutocompleteProps) {
   const [query, setQuery] = useState('');
