@@ -9,9 +9,11 @@ interface HeroAutocompleteProps {
   selectedIds: number[];
   onSelect: (heroId: number) => void;
   onRemove: (heroId: number) => void;
+  label?: string;
+  maxCount?: number;
 }
 
-export default function HeroAutocomplete({ heroes, selectedIds, onSelect, onRemove }: HeroAutocompleteProps) {
+export default function HeroAutocomplete({ heroes, selectedIds, onSelect, onRemove, label = 'Enemy Heroes (max 3)', maxCount = 3 }: HeroAutocompleteProps) {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -38,7 +40,7 @@ export default function HeroAutocomplete({ heroes, selectedIds, onSelect, onRemo
   return (
     <div className="flex flex-col gap-2">
       <label className="text-sm font-medium text-gray-300">
-        Enemy Heroes (max 3)
+        {label}
       </label>
       <div ref={containerRef} className="relative">
         <input
@@ -53,8 +55,8 @@ export default function HeroAutocomplete({ heroes, selectedIds, onSelect, onRemo
               setIsOpen(true);
             }
           }}
-          placeholder={selectedIds.length >= 3 ? 'Max enemies selected' : 'Search for a hero...'}
-          disabled={selectedIds.length >= 3}
+          placeholder={selectedIds.length >= maxCount ? 'Max heroes selected' : 'Search for a hero...'}
+          disabled={selectedIds.length >= maxCount}
           className="w-full rounded-lg bg-gray-800 px-4 py-2 text-gray-100 border border-gray-700 focus:border-cyan-500 focus:outline-none disabled:opacity-50"
         />
         {isOpen && filtered.length > 0 && (

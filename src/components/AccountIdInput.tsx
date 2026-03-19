@@ -8,7 +8,7 @@ interface AccountIdInputProps {
 }
 
 export default function AccountIdInput({ onLoad, loading }: AccountIdInputProps) {
-  const [value, setValue] = useState('');
+  const [value, setValue] = useState('177992811');
   const [validationError, setValidationError] = useState<string | null>(null);
 
   function handleSubmit() {

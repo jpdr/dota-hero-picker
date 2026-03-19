@@ -1,10 +1,14 @@
 import { Hero, PlayerHeroStat, HeroMatchup } from '@/types/hero';
-import { HeroPoolEntry, MatchupResult, Recommendation } from '@/types/recommendation';
+import { HeroPoolEntry, MatchupResult, SynergyResult, Recommendation } from '@/types/recommendation';
 import { LaneRoleStat, LaneType, HeroLaneData, LANE_ROLE_MAP } from '@/types/lane';
+import { HeroMetaScore } from '@/types/meta';
+import { TimingTag } from '@/services/timing';
 import {
   SCORE_WEIGHT_WIN_RATE,
   SCORE_WEIGHT_MATCHUP,
+  SCORE_WEIGHT_ALLY_SYNERGY,
   SCORE_WEIGHT_EXPERIENCE,
+  SCORE_WEIGHT_META,
   TOP_RECOMMENDATIONS_COUNT,
   MIN_GAMES_DEFAULT,
 } from '@/constants';
@@ -77,32 +81,89 @@ export function computeCompositeScore(
   playerWinRate: number,
   avgMatchupAdvantage: number,
   matchesPlayed: number,
+  avgAllySynergy = 0,
+  metaScore = 0,
 ): number {
   return (playerWinRate * SCORE_WEIGHT_WIN_RATE)
     + (avgMatchupAdvantage * SCORE_WEIGHT_MATCHUP)
-    + (Math.log10(Math.max(matchesPlayed, 1)) * SCORE_WEIGHT_EXPERIENCE);
+    + (avgAllySynergy * SCORE_WEIGHT_ALLY_SYNERGY)
+    + (Math.log10(Math.max(matchesPlayed, 1)) * SCORE_WEIGHT_EXPERIENCE)
+    + (metaScore * SCORE_WEIGHT_META);
 }
 
-export function generateReasons(
-  playerWinRate: number,
-  matchupDetails: { enemyName: string; advantage: number }[],
-  matchesPlayed: number,
-): string[] {
+interface SynergyDetail {
+  heroId: number;
+  synergy: number;
+  gamesPlayed: number;
+}
+
+interface SynergyAdvantageResult {
+  average: number;
+  details: SynergyDetail[];
+}
+
+export function computeAllySynergy(
+  allyData: { hero_id: number; games: number; wins: number }[],
+): SynergyAdvantageResult {
+  const details: SynergyDetail[] = [];
+
+  for (const ally of allyData) {
+    if (ally.games > 0) {
+      details.push({
+        heroId: ally.hero_id,
+        synergy: (ally.wins / ally.games) - 0.5,
+        gamesPlayed: ally.games,
+      });
+    }
+  }
+
+  const average = details.length > 0
+    ? details.reduce((sum, d) => sum + d.synergy, 0) / details.length
+    : 0;
+
+  return { average, details };
+}
+
+interface GenerateReasonsParams {
+  playerWinRate: number;
+  matchesPlayed: number;
+  matchupDetails: { enemyName: string; advantage: number; gamesPlayed: number }[];
+  synergyDetails: { allyName: string; synergy: number }[];
+  metaScore?: HeroMetaScore;
+  timingTag?: TimingTag;
+}
+
+export function generateReasons(params: GenerateReasonsParams): string[] {
+  const { playerWinRate, matchesPlayed, matchupDetails, synergyDetails, metaScore, timingTag } = params;
   const reasons: string[] = [];
 
-  reasons.push(`You have ${(playerWinRate * 100).toFixed(0)}% win rate`);
+  const confidence = matchesPlayed >= 100 ? 'high confidence pick' : matchesPlayed >= 50 ? 'solid pick' : 'limited data';
+  reasons.push(`You have ${(playerWinRate * 100).toFixed(0)}% win rate over ${matchesPlayed} games — ${confidence}`);
 
   for (const detail of matchupDetails) {
     const sign = detail.advantage >= 0 ? '+' : '';
-    reasons.push(`${detail.advantage >= 0 ? 'Strong' : 'Weak'} against ${detail.enemyName} (${sign}${(detail.advantage * 100).toFixed(1)}%)`);
+    const label = detail.advantage >= 0 ? 'Strong counter to' : 'Weak against';
+    const gamesLabel = detail.gamesPlayed >= 1000 ? `${(detail.gamesPlayed / 1000).toFixed(1)}k` : `${detail.gamesPlayed}`;
+    reasons.push(`${label} ${detail.enemyName} (${sign}${(detail.advantage * 100).toFixed(1)}% advantage in ${gamesLabel} games)`);
   }
 
-  if (matchesPlayed >= 100) {
-    reasons.push(`${matchesPlayed} games played — high confidence`);
-  } else if (matchesPlayed >= 50) {
-    reasons.push(`${matchesPlayed} games played — moderate confidence`);
-  } else {
-    reasons.push(`${matchesPlayed} games played — low confidence`);
+  for (const detail of synergyDetails) {
+    const sign = detail.synergy >= 0 ? '+' : '';
+    const label = detail.synergy >= 0 ? 'Great synergy with' : 'Poor synergy with';
+    reasons.push(`${label} ${detail.allyName} (${sign}${(detail.synergy * 100).toFixed(1)}% when played together)`);
+  }
+
+  if (metaScore) {
+    reasons.push(`${metaScore.tier}-tier in current meta (${(metaScore.currentWinRate * 100).toFixed(1)}% overall win rate)`);
+  }
+
+  if (timingTag && timingTag !== 'Balanced') {
+    const timingDescriptions: Record<string, string> = {
+      'Early Dominator': 'Early dominator — peaks before 25 min',
+      'Mid-game Tempo': 'Mid-game tempo hero — peaks at 25-35 min',
+      'Late-game Carry': 'Late-game carry — scales past 35 min',
+    };
+    reasons.push(timingDescriptions[timingTag]);
   }
 
   return reasons;
@@ -170,39 +231,86 @@ export function filterPoolByLane(
   });
 }
 
-export function scoreHeroPool(
-  heroPool: HeroPoolEntry[],
-  matchupResults: (HeroMatchup[] | null)[],
-  enemyHeroIds: number[],
-  heroes: Hero[],
-  laneDataMap?: Map<number, HeroLaneData>,
-  laneType?: LaneType,
-): Recommendation[] {
+interface ScoreHeroPoolParams {
+  heroPool: HeroPoolEntry[];
+  matchupResults: (HeroMatchup[] | null)[];
+  enemyHeroIds: number[];
+  heroes: Hero[];
+  laneDataMap?: Map<number, HeroLaneData>;
+  laneType?: LaneType;
+  allyResults?: ({ hero_id: number; games: number; wins: number }[] | null)[];
+  allyHeroIds?: number[];
+  metaScores?: Map<number, HeroMetaScore>;
+  timingTags?: Map<number, TimingTag>;
+}
+
+export function scoreHeroPool(params: ScoreHeroPoolParams): Recommendation[] {
+  const {
+    heroPool,
+    matchupResults,
+    enemyHeroIds,
+    heroes,
+    laneDataMap,
+    laneType,
+    allyResults,
+    allyHeroIds,
+    metaScores,
+    timingTags,
+  } = params;
+
   const heroMap = new Map(heroes.map(h => [h.id, h]));
+  const unknownHero = (id: number): Hero => ({ id, name: '', localized_name: 'Unknown', primary_attr: '', attack_type: '', roles: [] });
 
   const scored: Recommendation[] = heroPool.map((entry, index) => {
     const matchups = matchupResults[index];
 
-    const { average, details } = matchups
+    const { average: matchupAvg, details: matchupDetailsList } = matchups
       ? computeMatchupAdvantage(matchups, enemyHeroIds)
       : { average: 0, details: [] };
 
-    const matchupDetails: MatchupResult[] = details.map(d => ({
-      enemyHero: heroMap.get(d.heroId) ?? { id: d.heroId, name: '', localized_name: 'Unknown', primary_attr: '', attack_type: '', roles: [] },
+    const matchupDetails: MatchupResult[] = matchupDetailsList.map(d => ({
+      enemyHero: heroMap.get(d.heroId) ?? unknownHero(d.heroId),
       advantage: d.advantage,
       gamesPlayed: d.gamesPlayed,
     }));
 
-    const compositeScore = computeCompositeScore(entry.winRate, average, entry.games);
+    const allyData = allyResults?.[index];
+    const { average: synergyAvg, details: synergyDetailsList } = allyData
+      ? computeAllySynergy(allyData)
+      : { average: 0, details: [] };
 
-    const reasons = generateReasons(
+    const synergyDetails: SynergyResult[] = synergyDetailsList.map(d => ({
+      allyHero: heroMap.get(d.heroId) ?? unknownHero(d.heroId),
+      synergy: d.synergy,
+      gamesPlayed: d.gamesPlayed,
+    }));
+
+    const heroMeta = metaScores?.get(entry.hero.id);
+    const timingTag = timingTags?.get(entry.hero.id);
+
+    const compositeScore = computeCompositeScore(
       entry.winRate,
-      details.map(d => ({
+      matchupAvg,
+      entry.games,
+      synergyAvg,
+      heroMeta?.metaScore ?? 0,
+    );
+
+    const reasons = generateReasons({
+      playerWinRate: entry.winRate,
+      matchesPlayed: entry.games,
+      matchupDetails: matchupDetailsList.map(d => ({
         enemyName: heroMap.get(d.heroId)?.localized_name ?? 'Unknown',
         advantage: d.advantage,
+        gamesPlayed: d.gamesPlayed,
       })),
-      entry.games,
-    );
+      synergyDetails: synergyDetailsList.map(d => ({
+        allyName: heroMap.get(d.heroId)?.localized_name ?? 'Unknown',
+        synergy: d.synergy,
+      })),
+      metaScore: heroMeta,
+      timingTag,
+    });
 
     if (laneDataMap && laneType) {
       const laneData = laneDataMap.get(entry.hero.id);
@@ -223,10 +331,14 @@ export function scoreHeroPool(
       hero: entry.hero,
       compositeScore,
       playerWinRate: entry.winRate,
-      averageMatchupAdvantage: average,
+      averageMatchupAdvantage: matchupAvg,
+      averageAllySynergy: synergyAvg,
       matchesPlayed: entry.games,
       matchupDetails,
+      synergyDetails,
       reasons,
+      timingTag,
+      metaTier: heroMeta?.tier,
     };
   });
 

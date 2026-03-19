@@ -3,8 +3,10 @@
 import { usePickerState } from '@/hooks/usePickerState';
 import AccountIdInput from './AccountIdInput';
 import HeroPoolDisplay from './HeroPoolDisplay';
-import HeroAutocomplete from './HeroAutocomplete';
+import DraftBoard from './DraftBoard';
+import SelectionModeToggle from './SelectionModeToggle';
 import LaneSelector from './LaneSelector';
+import HeroGrid from './HeroGrid';
 import RecommendationList from './RecommendationList';
 
 export default function PickerPage() {
@@ -18,19 +20,27 @@ export default function PickerPage() {
     recommendations,
     recsLoading,
     recsError,
-    selectedEnemyIds,
+    allySlots,
+    enemySlots,
+    allyHeroIds,
+    enemyHeroIds,
+    allPickedIds,
+    recommendedHeroIds,
+    selectionMode,
     isPoolLoaded,
-    canSuggest,
     laneType,
+    itemsLoading,
     setLaneType,
+    setSelectionMode,
     handleLoadProfile,
-    handleSelectEnemy,
+    handlePickHero,
+    handleRemoveAlly,
     handleRemoveEnemy,
-    handleSuggestPicks,
+    handlePickRecommendation,
   } = usePickerState();
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-8">
+    <div className="mx-auto w-full max-w-5xl px-4 py-8">
       <h1 className="mb-8 text-3xl font-bold text-gray-100">Dota 2 Hero Picker</h1>
 
       {heroesError && (
@@ -52,33 +62,46 @@ export default function PickerPage() {
           </div>
         )}
 
-        {isPoolLoaded && <HeroPoolDisplay heroPool={heroPool} />}
+        <DraftBoard
+          allies={allySlots}
+          enemies={enemySlots}
+          onRemoveAlly={handleRemoveAlly}
+          onRemoveEnemy={handleRemoveEnemy}
+        />
 
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-          <div className="flex-1">
-            <HeroAutocomplete
-              heroes={heroes}
-              selectedIds={selectedEnemyIds}
-              onSelect={handleSelectEnemy}
-              onRemove={handleRemoveEnemy}
-            />
-          </div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-6">
+          <SelectionModeToggle
+            mode={selectionMode}
+            onChange={setSelectionMode}
+            allyCount={allyHeroIds.length}
+            enemyCount={enemyHeroIds.length}
+          />
           <LaneSelector value={laneType} onChange={setLaneType} />
         </div>
 
-        <button
-          onClick={handleSuggestPicks}
-          disabled={!canSuggest}
-          className="rounded-lg bg-emerald-600 px-6 py-3 font-medium text-white hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {recsLoading ? 'Calculating...' : 'Suggest Picks'}
-        </button>
+        <div>
+          <h2 className="mb-3 text-lg font-semibold text-gray-200">Recommendations</h2>
+          <RecommendationList
+            recommendations={recommendations}
+            loading={recsLoading}
+            error={recsError}
+            itemsLoading={itemsLoading}
+            onPickHero={handlePickRecommendation}
+          />
+        </div>
 
-        <RecommendationList
-          recommendations={recommendations}
-          loading={recsLoading}
-          error={recsError}
-        />
+        <div>
+          <h2 className="mb-3 text-lg font-semibold text-gray-200">Hero Pool</h2>
+          <HeroGrid
+            heroes={heroes}
+            pickedHeroIds={allPickedIds}
+            recommendedHeroIds={recommendedHeroIds}
+            selectionMode={selectionMode}
+            onPickHero={handlePickHero}
+          />
+        </div>
+
+        {isPoolLoaded && <HeroPoolDisplay heroPool={heroPool} />}
       </div>
     </div>
   );

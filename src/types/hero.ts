@@ -23,3 +23,9 @@ export interface HeroMatchup {
   games_played: number;
   wins: number;
 }
+
+export interface HeroDuration {
+  duration_bin: number;
+  games_played: number;
+  wins: number;
+}

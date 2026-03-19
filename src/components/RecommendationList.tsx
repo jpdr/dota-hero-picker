@@ -8,13 +8,15 @@ interface RecommendationListProps {
   recommendations: Recommendation[];
   loading: boolean;
   error: string | null;
+  itemsLoading?: boolean;
+  onPickHero?: (heroId: number) => void;
 }
 
 function LoadingSkeleton() {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="flex gap-4 overflow-x-auto pb-2">
       {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
-        <div key={i} className="animate-pulse rounded-lg bg-gray-800 border border-gray-700">
+        <div key={i} className="w-64 flex-shrink-0 animate-pulse rounded-lg bg-gray-800 border border-gray-700">
           <div className="h-32 bg-gray-700 rounded-t-lg" />
           <div className="p-4 space-y-3">
             <div className="h-5 w-2/3 rounded bg-gray-700" />
@@ -34,7 +36,7 @@ function LoadingSkeleton() {
   );
 }
 
-export default function RecommendationList({ recommendations, loading, error }: RecommendationListProps) {
+export default function RecommendationList({ recommendations, loading, error, itemsLoading, onPickHero }: RecommendationListProps) {
   if (loading) {
     return <LoadingSkeleton />;
   }
@@ -50,15 +52,22 @@ export default function RecommendationList({ recommendations, loading, error }: 
   if (recommendations.length === 0) {
     return (
       <div className="text-center text-gray-500 py-8">
-        Select enemy heroes and click &quot;Suggest Picks&quot; to get recommendations.
+        Pick enemy heroes and load your profile to see recommendations.
       </div>
     );
   }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="flex gap-4 overflow-x-auto pb-2">
       {recommendations.map((rec, i) => (
-        <RecommendationCard key={rec.hero.id} recommendation={rec} rank={i + 1} />
+        <div key={rec.hero.id} className="w-64 flex-shrink-0">
+          <RecommendationCard
+            recommendation={rec}
+            rank={i + 1}
+            itemsLoading={itemsLoading}
+            onClick={onPickHero ? () => onPickHero(rec.hero.id) : undefined}
+          />
+        </div>
       ))}
     </div>
   );

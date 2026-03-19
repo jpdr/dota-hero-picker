@@ -4,8 +4,10 @@ import { useState, useCallback } from 'react';
 import { Hero, HeroMatchup } from '@/types/hero';
 import { HeroPoolEntry, Recommendation } from '@/types/recommendation';
 import { HeroLaneData, LaneType } from '@/types/lane';
-import { fetchHeroMatchups } from '@/services/opendota-api';
+import { HeroMetaScore } from '@/types/meta';
+import { fetchHeroMatchups, fetchHeroDurations, fetchHeroAllyWinRates } from '@/services/opendota-api';
 import { scoreHeroPool, filterPoolByLane } from '@/services/scoring';
+import { classifyTiming, TimingTag } from '@/services/timing';
 import { MAX_CONCURRENT_FETCHES } from '@/constants';
 
 interface UseRecommendationsResult {
@@ -18,31 +20,32 @@ interface UseRecommendationsResult {
     heroes: Hero[],
     laneDataMap?: Map<number, HeroLaneData>,
     laneType?: LaneType,
+    allyHeroIds?: number[],
+    metaScores?: Map<number, HeroMetaScore>,
   ) => Promise<void>;
 }
 
-async function fetchMatchupsWithConcurrencyLimit(
-  heroPool: HeroPoolEntry[],
+async function fetchWithConcurrencyLimit<T>(
+  items: { id: number }[],
+  fetchFn: (id: number) => Promise<T>,
   maxConcurrent: number,
-): Promise<(HeroMatchup[] | null)[]> {
-  const results: (HeroMatchup[] | null)[] = new Array(heroPool.length).fill(null);
+): Promise<(T | null)[]> {
+  const results: (T | null)[] = new Array(items.length).fill(null);
   let nextIndex = 0;
 
   async function worker(): Promise<void> {
-    while (nextIndex < heroPool.length) {
+    while (nextIndex < items.length) {
       const index = nextIndex++;
-      const result = await fetchHeroMatchups(heroPool[index].hero.id)
-        .then(data => ({ status: 'fulfilled' as const, value: data }))
-        .catch(() => ({ status: 'rejected' as const }));
-
-      if (result.status === 'fulfilled') {
-        results[index] = result.value;
+      try {
+        results[index] = await fetchFn(items[index].id);
+      } catch {
+        // leave as null
       }
     }
   }
 
   const workers = Array.from(
-    { length: Math.min(maxConcurrent, heroPool.length) },
+    { length: Math.min(maxConcurrent, items.length) },
     () => worker(),
   );
   await Promise.all(workers);
@@ -61,6 +64,8 @@ export function useRecommendations(): UseRecommendationsResult {
     heroes: Hero[],
     laneDataMap?: Map<number, HeroLaneData>,
     laneType?: LaneType,
+    allyHeroIds?: number[],
+    metaScores?: Map<number, HeroMetaScore>,
   ) => {
     try {
       setLoading(true);
@@ -76,9 +81,50 @@ export function useRecommendations(): UseRecommendationsResult {
         return;
       }
 
-      const matchupResults = await fetchMatchupsWithConcurrencyLimit(filteredPool, MAX_CONCURRENT_FETCHES);
+      const poolItems = filteredPool.map(e => ({ id: e.hero.id }));
 
-      const scored = scoreHeroPool(filteredPool, matchupResults, enemyHeroIds, heroes, laneDataMap, laneType);
+      const matchupResults = await fetchWithConcurrencyLimit<HeroMatchup[]>(
+        poolItems,
+        (id) => fetchHeroMatchups(id),
+        MAX_CONCURRENT_FETCHES,
+      );
+
+      const durationResults = await fetchWithConcurrencyLimit(
+        poolItems,
+        (id) => fetchHeroDurations(id),
+        MAX_CONCURRENT_FETCHES,
+      );
+
+      const timingTags = new Map<number, TimingTag>();
+      for (let i = 0; i < filteredPool.length; i++) {
+        const durations = durationResults[i];
+        if (durations && durations.length > 0) {
+          timingTags.set(filteredPool[i].hero.id, classifyTiming(durations));
+        }
+      }
+
+      let allyResults: ({ hero_id: number; games: number; wins: number }[] | null)[] | undefined;
+      const effectiveAllyIds = allyHeroIds ?? [];
+      if (effectiveAllyIds.length > 0) {
+        allyResults = await fetchWithConcurrencyLimit(
+          poolItems,
+          (id) => fetchHeroAllyWinRates(id, effectiveAllyIds),
+          MAX_CONCURRENT_FETCHES,
+        );
+      }
+
+      const scored = scoreHeroPool({
+        heroPool: filteredPool,
+        matchupResults,
+        enemyHeroIds,
+        heroes,
+        laneDataMap,
+        laneType,
+        allyResults,
+        allyHeroIds: effectiveAllyIds,
+        metaScores,
+        timingTags,
+      });
       setRecommendations(scored);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to calculate recommendations');
